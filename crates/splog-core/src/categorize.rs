@@ -103,16 +103,15 @@ fn fqn_like_re() -> &'static Regex {
     R.get_or_init(|| Regex::new(r"([a-zA-Z](?:[a-zA-Z\.\$]|::)+[a-zA-Z]):").unwrap())
 }
 
-/// Byte offset where the line's contiguous header region ends. The walk
-/// starts after any leading whitespace, then greedily eats header tokens
-/// (bracketed/parenthesized groups, ISO dates, times, bare severities)
-/// separated by up to `MAX_GLUE` bytes of punctuation/whitespace. Returns 0
-/// when no header token sits at the start — every bracket/paren group on
-/// such lines is then treated as payload and ignored.
+/// Byte offset where the line's contiguous header region ends. The walk starts after any leading
+/// whitespace and glue characters, then greedily eats header tokens (bracketed/parenthesized
+/// groups, ISO dates, times, bare severities) separated by up to `MAX_GLUE` bytes of
+/// punctuation/whitespace. Returns 0 when no header token sits at the start — every bracket/paren
+/// group on such lines is then treated as payload and ignored.
 fn header_end_and_dash_candidates(plain: &str) -> (usize, Vec<(String, usize, usize)>) {
     let bytes = plain.as_bytes();
     let mut i = 0;
-    while i < bytes.len() && bytes[i].is_ascii_whitespace() {
+    while i < bytes.len() && (bytes[i].is_ascii_whitespace() || is_glue(bytes[i])) {
         i += 1;
     }
 
@@ -183,6 +182,7 @@ fn header_token_re() -> &'static Regex {
                 \[[^\[\]]+\]
               | \([^()]+\)
               | \d+\s
+              | \{{[^}}]+}}
               | \d{{4}}-\d{{2}}-\d{{2}}T?
               | \d{{8}}T?
               | \d{{2}}:\d{{2}}:\d{{2}}(?:[\.,]\d+Z?)?
@@ -348,6 +348,14 @@ mod tests {
     fn single_number_extends_header() {
         let cats = extract(
             "39 | 2026-05-29T07:23:44.365060Z TRACE cascaded::persistence::restore: Storing IXFR in-memory diff for SOA loaded serial -None:+None -> signed serial -Some(Serial(U32(2026052600))):+Som|",
+        );
+        assert_eq!(cats, vec!["cascaded::persistence::restore".to_string()]);
+    }
+
+    #[test]
+    fn glue_characters_at_line_start_extend_header() {
+        let cats = extract(
+            "| 2026-05-29T07:23:44.365060Z TRACE cascaded::persistence::restore: Storing IXFR in-memory diff for SOA loaded serial -None:+None -> signed serial -Some(Serial(U32(2026052600))):+Som|",
         );
         assert_eq!(cats, vec!["cascaded::persistence::restore".to_string()]);
     }
