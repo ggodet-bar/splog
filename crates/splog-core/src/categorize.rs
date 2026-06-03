@@ -136,7 +136,7 @@ fn header_end_and_dash_candidates(plain: &str) -> (usize, Vec<(String, usize, us
             {
                 let m = cap.get_match();
                 // SAFETY: `dashed_re` matches a group, so `cap.get(1)` is always expected to
-                // always return a result.
+                // return a result.
                 let cap = cap.get(1).unwrap();
                 let (start_idx, end_idx) = (cap.start() + dash_idx, cap.end() + dash_idx);
                 if m.start() == 0 {
@@ -182,6 +182,7 @@ fn header_token_re() -> &'static Regex {
             ^(?:
                 \[[^\[\]]+\]
               | \([^()]+\)
+              | \d+\s
               | \d{{4}}-\d{{2}}-\d{{2}}T?
               | \d{{8}}T?
               | \d{{2}}:\d{{2}}:\d{{2}}(?:[\.,]\d+Z?)?
@@ -341,6 +342,14 @@ mod tests {
             cats,
             vec!["SendWorker:188978561024:QuorumCnxManager$SendWorker@688".to_string()]
         );
+    }
+
+    #[test]
+    fn single_number_extends_header() {
+        let cats = extract(
+            "39 | 2026-05-29T07:23:44.365060Z TRACE cascaded::persistence::restore: Storing IXFR in-memory diff for SOA loaded serial -None:+None -> signed serial -Some(Serial(U32(2026052600))):+Som|",
+        );
+        assert_eq!(cats, vec!["cascaded::persistence::restore".to_string()]);
     }
 
     // NOTE The following test case would not be supported right now, as the categories appear as
